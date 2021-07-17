@@ -1,0 +1,13 @@
+diff --git a/src/uxn.h b/src/uxn.h
+index 920df0f..9189062 100644
+--- a/src/uxn.h
++++ b/src/uxn.h
+@@ -25,7 +25,7 @@ typedef struct {
+
+ typedef struct {
+	Uint16 ptr;
+-	Uint8 dat[65536];
++	Uint8 dat[65536-1024];
+ } Memory;
+
+ typedef struct Device {

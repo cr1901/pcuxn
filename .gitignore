@@ -1,0 +1,3 @@
+include.mk
+src/uxn.h
+src/uxn.c
