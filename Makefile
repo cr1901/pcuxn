@@ -31,11 +31,11 @@ src/uxn.h: $(UXN)/src/uxn.h src/uxn.h.diff
 
 # Helper targets
 clean:
-	rm -rf build/*{.exe, .obj, .o, .map, .rom}
+	rm -rf build/*.exe build/*.obj build/*.o  build/*.map build/*.rom
 
 dosbox:
 	dosbox-x -c "mount c build" -c "c:"
 
 # Projects
-build/console.rom: $(UXN)/projects/examples/devices/console.tal
+build/console.rom: $(UXN)/projects/examples/devices/console.tal build/uxnasm.exe
 	build/uxnasm.exe $< $@
