@@ -2,14 +2,16 @@ import argparse
 import os
 import platform
 
-from os.path import normpath as np
-
 from gen.ninja_syntax import *
 
 def configure(user_vars):
     pass
 
 def write_ninja(user_vars):
+    # Let's avoid mixed slashes altogether (MSYS2 Python inside bash prompt).
+    def np(path):
+        return os.path.normpath(path).replace("/", "\\")
+
     with open("build.ninja", "w") as fp:
         writer = Writer(fp)
 
@@ -21,7 +23,7 @@ def write_ninja(user_vars):
             writer.variable("sh_wrap", "sh -c")
             writer.variable("null", "/dev/null")
             writer.variable("cp", "cp")
-        writer.variable("uxn_path", os.path.abspath(user_vars.uxn))
+        writer.variable("uxn_path", np(os.path.abspath(user_vars.uxn)))
         writer.newline()
 
         # TODO: MSVC support?
@@ -43,9 +45,9 @@ def write_ninja(user_vars):
         writer.variable("wat_cflags", "-0 -bt=dos -m$wat_modelchr $wat_include -q -s -oh -os -fr=")
         writer.variable("wat_ldflags", "system dos option quiet")
         if platform.system() == "Windows":
-            writer.variable("wat_setenv", "{} > $null".format(os.path.join(user_vars.watcom, "owsetenv.bat")))
+            writer.variable("wat_setenv", "{} > $null".format(np(os.path.join(user_vars.watcom, "owsetenv.bat"))))
         else:
-            writer.variable("wat_setenv", ". {} > $null".format(os.path.join(user_vars.watcom, "owsetenv.sh")))
+            writer.variable("wat_setenv", ". {} > $null".format(np(os.path.join(user_vars.watcom, "owsetenv.sh"))))
         writer.rule("wat_cc", "$sh_wrap $wat_setenv && $wat_cc $wat_cflags -c -fo=$out $in",
                     description="$wat_cc $wat_cflags -c -fo=$out $in")
         writer.rule("wat_ld_map", "$sh_wrap $wat_setenv && $wat_ld $wat_ldflags option map=$mapfile name $outfile file { $in }",
@@ -95,7 +97,7 @@ def write_ninja(user_vars):
 
         if user_vars.dosbox:
             writer.newline()
-            writer.variable("dosbox", user_vars.dosbox)
+            writer.variable("dosbox", np(user_vars.dosbox))
             writer.rule("dosbox", command="$dosbox -c \"mount c out\" -c \"c:\"\"", pool="console")
             writer.newline()
 
