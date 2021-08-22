@@ -6,19 +6,16 @@ CFLAGS=-0 -bt=dos -m$(MODELCHR) -Isrc -q -s -oh -os
 LD=wlink
 LDFLAGS=system dos option quiet option map=build/pcuxn.map
 
-all: build/console.rom build/pcuxn.exe build/uxnasm.exe
+all: build/console.rom build/echo.rom build/pcuxn.exe build/uxnasm.exe
 
 # Main exes
-build/pcuxn.exe: build/pcuxn.obj build/uxn.obj
-	$(LD) $(LDFLAGS) name build/pcuxn.exe file { build/pcuxn.obj build/uxn.obj }
+build/pcuxn.exe: build/pcuxn.obj build/uxn.obj build/doswrap.obj
+	$(LD) $(LDFLAGS) option map=build/pcuxn.map name $@ file { $^ }
 
 build/uxnasm.exe: $(UXN)/src/uxnasm.c
 	gcc -O2 -o $@ $<
 
-build/pcuxn.obj: src/pcuxn.c src/uxn.h
-	$(CC) $(CFLAGS) -c -fo=$@ $<
-
-build/uxn.obj: src/uxn.c src/uxn.h
+build/%.obj: src/%.c src/uxn.h
 	$(CC) $(CFLAGS) -c -fo=$@ $<
 
 # Include path conflict... source directory is favored over mine
@@ -38,4 +35,7 @@ dosbox:
 
 # Projects
 build/console.rom: $(UXN)/projects/examples/devices/console.tal build/uxnasm.exe
+	build/uxnasm.exe $< $@
+
+build/echo.rom: $(UXN)/projects/examples/devices/console.echo.tal build/uxnasm.exe
 	build/uxnasm.exe $< $@
