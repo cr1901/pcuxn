@@ -66,7 +66,17 @@ def write_ninja(user_vars):
                         "depfile" : np("build/uxn.d"),
                         # "wat_include" : "-I$uxn_path\\src"
                      }) #, implicit_outputs="uxn.err")
-        writer.build([np("out/pcuxn.exe"), np("build/pcuxn.map")], "wat_ld_map", [np("build/pcuxn.obj"), np("build/uxn.obj")],
+        writer.build(np("build/doswrap.obj"), "wat_cc", np("src/doswrap.c"),
+                     variables={
+                        "depfile" : np("build/doswrap.d"),
+                     }) #, implicit_outputs="doswrap.err")
+        writer.build(np("build/console.obj"), "wat_cc", np("src/devices/console.c"),
+                     variables={
+                        "depfile" : np("build/console.d"),
+                     }) #, implicit_outputs="console.err")
+        writer.build([np("out/pcuxn.exe"), np("build/pcuxn.map")], "wat_ld_map",
+                [np("build/pcuxn.obj"), np("build/uxn.obj"), np("build/doswrap.obj"),
+                 np("build/console.obj")],
                 variables = {
                     "outfile" : np("out/pcuxn.exe"),
                     "mapfile" : np("build/pcuxn.map")
