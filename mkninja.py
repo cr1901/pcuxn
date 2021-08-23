@@ -12,9 +12,20 @@ def write_ninja(user_vars):
     def np(path):
         return os.path.normpath(path).replace("/", "\\")
 
+    def add_wat_target(writer, infile, implicit=None, include=None):
+        root = os.path.splitext(os.path.basename(infile))[0]
+        writer.build(np(os.path.join("build", root + ".obj")), "wat_cc", infile,
+                     implicit=implicit,
+                     variables={
+                        "depfile" : np(os.path.join("build", root + ".d")),
+                        "wat_include": include
+                     }) #, implicit_outputs=np(os.path.join("build", root + ".err"))")
+        writer.build(np(os.path.join("build", root + ".dis")), "wat_dis", np(os.path.join("build", root + ".obj")))
+
     with open("build.ninja", "w") as fp:
         writer = Writer(fp)
 
+        writer.comment("Useful vars")
         if platform.system() == "Windows":
             writer.variable("sh_wrap", "cmd /c")
             writer.variable("null", "NUL")
@@ -27,6 +38,7 @@ def write_ninja(user_vars):
         writer.newline()
 
         # TODO: MSVC support?
+        writer.comment("Host build section")
         writer.variable("host_cc", "gcc")
         writer.variable("host_cflags", "-O2 -Wall -Wno-unknown-pragmas")
         writer.rule("host_cc", "$host_cc $host_cflags -o $out -c $in")
@@ -37,8 +49,10 @@ def write_ninja(user_vars):
         writer.build(np("out/uxnasm.exe"), "host_ld", np("build/uxnasm.o"))
         writer.newline()
 
+        writer.comment("WATCOM build section")
         writer.variable("wat_cc", "wcl")
         writer.variable("wat_ld", "wlink")
+        writer.variable("wat_dis", "wdis")
         writer.variable("wat_modelchr", user_vars.memmodel)
         writer.variable("wat_include", "-Isrc") # -I$uxn_path\\src")
         writer.comment("Avoid error files (fr) until I can figure out how to do conditional implicit outputs.")
@@ -52,37 +66,28 @@ def write_ninja(user_vars):
                     description="$wat_cc $wat_cflags $wat_include -c -ad=$depfile -add=$in -adt=$out -fo=$out $in")
         writer.rule("wat_ld_map", "$sh_wrap $wat_setenv && $wat_ld $wat_ldflags option map=$mapfile name $outfile file { $in }",
                     description="$wat_ld $wat_ldflags option map=$mapfile name $outfile file { $in }")
+        writer.rule("wat_dis", "$sh_wrap $wat_setenv && $wat_dis $in > $out",
+                    description="$wat_dis wdis $in > $out")
         writer.newline()
 
-        writer.build(np("build/pcuxn.obj"), "wat_cc", np("src/pcuxn.c"),
-                     implicit=np("src/uxn.h"),
-                     variables={
-                        "depfile" : np("build/pcuxn.d")
-                     }) #, implicit_outputs="pcuxn.err")
+        add_wat_target(writer, np("src/pcuxn.c"), implicit=np("src/uxn.h"))
         # TODO: Try np("$uxn_path/src/uxn.c") eventually? If include file handling behaves...
-        writer.build(np("build/uxn.obj"), "wat_cc", np("src/uxn.c"),
-                     implicit=np("src/uxn.h"),
-                     variables={
-                        "depfile" : np("build/uxn.d"),
-                        # "wat_include" : "-I$uxn_path\\src"
-                     }) #, implicit_outputs="uxn.err")
-        writer.build(np("build/doswrap.obj"), "wat_cc", np("src/doswrap.c"),
-                     variables={
-                        "depfile" : np("build/doswrap.d"),
-                     }) #, implicit_outputs="doswrap.err")
-        writer.build(np("build/console.obj"), "wat_cc", np("src/devices/console.c"),
-                     variables={
-                        "depfile" : np("build/console.d"),
-                     }) #, implicit_outputs="console.err")
+        add_wat_target(writer, np("src/uxn.c"), implicit=np("src/uxn.h")) #, include="-I$uxn_path\\src")
+        add_wat_target(writer, np("src/doswrap.c"))
+        add_wat_target(writer, np("src/devices/console.c"))
         writer.build([np("out/pcuxn.exe"), np("build/pcuxn.map")], "wat_ld_map",
-                [np("build/pcuxn.obj"), np("build/uxn.obj"), np("build/doswrap.obj"),
-                 np("build/console.obj")],
+                     [np("build/pcuxn.obj"), np("build/uxn.obj"), np("build/doswrap.obj"),
+                      np("build/console.obj")],
                 variables = {
                     "outfile" : np("out/pcuxn.exe"),
                     "mapfile" : np("build/pcuxn.map")
                 })
+        writer.build("dis", "phony",
+                     [np("build/pcuxn.dis"), np("build/uxn.dis"), np("build/doswrap.dis"),
+                      np("build/console.dis")])
         writer.newline()
 
+        writer.comment("UXNASM build section")
         writer.variable("uxnasm", np("out/uxnasm.exe"))
         writer.rule("uxn_rom", "$uxnasm $in $out")
         writer.newline()
@@ -91,6 +96,7 @@ def write_ninja(user_vars):
         writer.build(np("out/echo.rom"), "uxn_rom", np("$uxn_path/projects/examples/devices/console.echo.tal"), implicit=np("out/uxnasm.exe"))
         writer.newline()
 
+        writer.comment("Patch rules to work around WATCOM")
         writer.variable("patch", "patch")
         writer.rule("cp", "$sh_wrap \"$cp $in $out > $null\"",
                     description="Copy and $in for wcl's include ($out)")
@@ -107,11 +113,12 @@ def write_ninja(user_vars):
                      })
 
         writer.newline()
-        writer.comment("Build everything except the dosbox target.")
+        writer.comment("Build everything except the dosbox/disassembly targets")
         writer.default([np("out/pcuxn.exe"), np("out/console.rom"), np("out/echo.rom")])
 
         if user_vars.dosbox:
             writer.newline()
+            writer.comment("DOSBOX convenience rule")
             writer.variable("dosbox", np(user_vars.dosbox))
             writer.rule("dosbox", command="$dosbox -c \"mount c out\" -c \"c:\"\"", pool="console")
             writer.newline()
