@@ -42,24 +42,30 @@ def write_ninja(user_vars):
         writer.variable("wat_modelchr", user_vars.memmodel)
         writer.variable("wat_include", "-Isrc") # -I$uxn_path\\src")
         writer.comment("Avoid error files (fr) until I can figure out how to do conditional implicit outputs.")
-        writer.variable("wat_cflags", "-0 -bt=dos -m$wat_modelchr $wat_include -q -s -oh -os -fr=")
+        writer.variable("wat_cflags", "-0 -bt=dos -m$wat_modelchr -q -s -oh -os -fr=")
         writer.variable("wat_ldflags", "system dos option quiet")
         if platform.system() == "Windows":
             writer.variable("wat_setenv", "{} > $null".format(np(os.path.join(user_vars.watcom, "owsetenv.bat"))))
         else:
             writer.variable("wat_setenv", ". {} > $null".format(np(os.path.join(user_vars.watcom, "owsetenv.sh"))))
-        writer.rule("wat_cc", "$sh_wrap $wat_setenv && $wat_cc $wat_cflags -c -fo=$out $in",
-                    description="$wat_cc $wat_cflags -c -fo=$out $in")
+        writer.rule("wat_cc", "$sh_wrap $wat_setenv && $wat_cc $wat_cflags $wat_include -c -ad=$depfile -add=$in -adt=$out -fo=$out $in",
+                    description="$wat_cc $wat_cflags $wat_include -c -ad=$depfile -add=$in -adt=$out -fo=$out $in")
         writer.rule("wat_ld_map", "$sh_wrap $wat_setenv && $wat_ld $wat_ldflags option map=$mapfile name $outfile file { $in }",
                     description="$wat_ld $wat_ldflags option map=$mapfile name $outfile file { $in }")
         writer.newline()
 
-        writer.build(np("build/pcuxn.obj"), "wat_cc", np("src/pcuxn.c"), implicit=np("src/uxn.h")) #, implicit_outputs="pcuxn.err")
-        writer.build(np("build/uxn.obj"), "wat_cc", np("src/uxn.c"), # np("$uxn_path/src/uxn.c"), # variables={
-            #     "wat_include" : "-I$uxn_path\\src"
-            # },
-            implicit=np("src/uxn.h"))
-            #, implicit_outputs="uxn.err")
+        writer.build(np("build/pcuxn.obj"), "wat_cc", np("src/pcuxn.c"),
+                     implicit=np("src/uxn.h"),
+                     variables={
+                        "depfile" : np("build/pcuxn.d")
+                     }) #, implicit_outputs="pcuxn.err")
+        # TODO: Try np("$uxn_path/src/uxn.c") eventually? If include file handling behaves...
+        writer.build(np("build/uxn.obj"), "wat_cc", np("src/uxn.c"),
+                     implicit=np("src/uxn.h"),
+                     variables={
+                        "depfile" : np("build/uxn.d"),
+                        # "wat_include" : "-I$uxn_path\\src"
+                     }) #, implicit_outputs="uxn.err")
         writer.build([np("out/pcuxn.exe"), np("build/pcuxn.map")], "wat_ld_map", [np("build/pcuxn.obj"), np("build/uxn.obj")],
                 variables = {
                     "outfile" : np("out/pcuxn.exe"),
@@ -76,10 +82,10 @@ def write_ninja(user_vars):
         writer.newline()
 
         writer.variable("patch", "patch")
-        writer.rule("cp", "$sh_wrap \"$cp $in $out\"",
+        writer.rule("cp", "$sh_wrap \"$cp $in $out > $null\"",
                     description="Copy and $in for wcl's include ($out)")
         writer.comment("This rule will probably break if the cp succeeds, but the patch doesn't.")
-        writer.rule("cp_patch", "$sh_wrap \"$cp $infile $outfile && $patch -Np1 < $patchfile\"",
+        writer.rule("cp_patch", "$sh_wrap \"$cp $infile $out > $null && $patch -Np1 < $patchfile\"",
                     description="Copy and patching $infile for wcl ($out)")
         writer.newline()
 
@@ -87,7 +93,6 @@ def write_ninja(user_vars):
         writer.build(np("src/uxn.h"), "cp_patch", [np("$uxn_path/src/uxn.h"), np("src/uxn.h.diff")],
                      variables = {
                         "infile" : np("$uxn_path/src/uxn.h"),
-                        "outfile" : np("src/uxn.h"),
                         "patchfile" : np("src/uxn.h.diff")
                      })
 
